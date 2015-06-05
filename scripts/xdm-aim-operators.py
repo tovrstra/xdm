@@ -60,7 +60,7 @@ def get_dmo(mol, wpart):
             log('Computing overlap matrices for atom %i.' % iatom)
 
         # Prepare solid harmonics on grids.
-        grid = wpart.get_grid(iatom)
+        grid = mol.grid
         if wpart.lmax > 0:
             work = np.zeros((grid.size, npure-1), float)
             work[:,0] = grid.points[:,2] - wpart.coordinates[iatom,2]
