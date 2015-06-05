@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from cext import solve_brhole_isotropic
+from xdm import solve_brhole_isotropic
 import numpy as np, h5py as h5, matplotlib.pyplot as pt
 import sys
 
