@@ -5,13 +5,25 @@ import numpy as np, h5py as h5
 import sys
 
 
-def main(fn_work):
+def main(fn_work, scheme, fn_atoms=None):
     with h5.File(fn_work, 'r') as f:
         mol = IOData.from_file(f['mol'])
     mol.lf = DenseLinalgFactory(mol.obasis.nbasis)
 
     moldens = mol.obasis.compute_grid_density_dm(mol.get_dm_full(), mol.grid.points)
-    wpart = MBISWPart(mol.coordinates, mol.numbers, mol.pseudo_numbers, mol.grid, moldens, lmax=3)
+
+    if scheme == 'mbis':
+        wpart = MBISWPart(mol.coordinates, mol.numbers, mol.pseudo_numbers, mol.grid, moldens, lmax=3)
+    else:
+        atomdb = ProAtomDB.from_file(fn_atoms)
+        if scheme == 'hi':
+            wpart = HirshfeldIWPart(mol.coordinates, mol.numbers, mol.pseudo_numbers, mol.grid, moldens, atomdb, lmax=3)
+        elif scheme == 'h':
+            wpart = HirshfeldWPart(mol.coordinates, mol.numbers, mol.pseudo_numbers, mol.grid, moldens, atomdb, lmax=3)
+        else:
+            raise Foo
+    else:
+        raise Foo
     wpart.do_charges()
     wpart.do_moments()
 
@@ -119,4 +131,7 @@ def get_dmo(mol, wpart):
 
 
 if __name__ == '__main__':
-    main(sys.argv[1])
+    fn_atoms = None
+    if len(sys.argv) == 4:
+        fn_atoms = sys.argv[3]
+    main(sys.argv[1], sys.argv[2], fn_atoms)
