@@ -22,8 +22,7 @@ def main(fn_work, scheme, fn_atoms=None):
             wpart = HirshfeldWPart(mol.coordinates, mol.numbers, mol.pseudo_numbers, mol.grid, moldens, atomdb, lmax=3)
         else:
             raise Foo
-    else:
-        raise Foo
+
     wpart.do_charges()
     wpart.do_moments()
 
