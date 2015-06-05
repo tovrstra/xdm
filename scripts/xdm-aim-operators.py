@@ -41,20 +41,35 @@ def main(fn_work):
 def get_dmo(mol, wpart):
     wpart.do_partitioning()
     npure = get_npure_cumul(wpart.lmax)
-    for index in xrange(wpart.natom):
+
+    # Build the AIM weight function for the total grid
+    promol = mol.grid.zeros()
+    all_at_weights = []
+    for iatom in xrange(wpart.natom):
+        proatom = mol.grid.zeros()
+        wpart.eval_proatom(iatom, proatom, mol.grid)
+        all_at_weights.append(proatom)
+        promol += proatom
+    for iatom in xrange(wpart.natom):
+        all_at_weights[iatom] /= promol
+    del promol
+
+    # Build operators
+    for iatom in xrange(wpart.natom):
         if log.do_medium:
-            log('Computing overlap matrices for atom %i.' % index)
+            log('Computing overlap matrices for atom %i.' % iatom)
 
         # Prepare solid harmonics on grids.
-        grid = wpart.get_grid(index)
+        grid = wpart.get_grid(iatom)
         if wpart.lmax > 0:
             work = np.zeros((grid.size, npure-1), float)
-            work[:,0] = grid.points[:,2] - wpart.coordinates[index,2]
-            work[:,1] = grid.points[:,0] - wpart.coordinates[index,0]
-            work[:,2] = grid.points[:,1] - wpart.coordinates[index,1]
+            work[:,0] = grid.points[:,2] - wpart.coordinates[iatom,2]
+            work[:,1] = grid.points[:,0] - wpart.coordinates[iatom,0]
+            work[:,2] = grid.points[:,1] - wpart.coordinates[iatom,1]
             if wpart.lmax > 1:
                 fill_pure_polynomials(work, wpart.lmax)
-        at_weights = wpart.cache.load('at_weights', index)
+
+        at_weights = all_at_weights[iatom]
 
         # Convert the weight functions to AIM overlap operators.
         counter = 0
@@ -72,19 +87,19 @@ def get_dmo(mol, wpart):
                 potential_functions['pot_%05i' % counter] = tmp
                 counter += 1
 
-        wpart.cache.dump(('overlap_operators', index), overlap_operators)
-        wpart.cache.dump(('potential_functions', index), potential_functions)
+        wpart.cache.dump(('overlap_operators', iatom), overlap_operators)
+        wpart.cache.dump(('potential_functions', iatom), potential_functions)
 
     # Correct the s-type overlap operators such that the sum is exactly
     # equal to the total overlap.
     error_overlap = mol.lf.create_two_index()
-    for index in xrange(wpart.natom):
-        atom_overlap = wpart.cache.load('overlap_operators', index)['olp_00000']
+    for iatom in xrange(wpart.natom):
+        atom_overlap = wpart.cache.load('overlap_operators', iatom)['olp_00000']
         error_overlap.iadd(atom_overlap)
     error_overlap.iadd(mol.obasis.compute_overlap(mol.lf), -1)
     error_overlap.iscale(1.0/wpart.natom)
-    for index in xrange(wpart.natom):
-        atom_overlap = wpart.cache.load('overlap_operators', index)['olp_00000']
+    for iatom in xrange(wpart.natom):
+        atom_overlap = wpart.cache.load('overlap_operators', iatom)['olp_00000']
         atom_overlap.iadd(error_overlap, -1)
 
     # Construct the list of operators with a logical ordering
