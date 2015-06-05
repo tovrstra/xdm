@@ -31,7 +31,7 @@ def convert_chemps2(fn_2dm, fn_hf, fn_out):
 
     # Load the HF orbitals to transform the 2RDM back to the orbital basis
     mol = IOData.from_file(fn_hf)
-    mol.grid = BeckeMolGrid(mol.coordinates, mol.numbers, mol.pseudo_numbers, 'insane', mode='keep', random_rotate=False)
+    mol.grid = BeckeMolGrid(mol.coordinates, mol.numbers, mol.pseudo_numbers, 'ultrafine', mode='keep', random_rotate=False)
 
     # Load the irreps from the molden file
     irreps_molden = load_molden_irreps(fn_hf)
