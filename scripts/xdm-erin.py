@@ -58,7 +58,7 @@ class XDMMolecule(object):
 
         # get the (rescaled) polarizabilities
         self.pols = np.array([
-            [periodic[number].pold, polqs[number], polos[number]]
+            [periodic[number].pold, polqs.get(number, 0.0), polos.get(number, 0.0)]
             for number in mol.numbers
         ])
 
