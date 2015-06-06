@@ -5,6 +5,15 @@ import numpy as np, h5py as h5
 import sys
 
 
+def get_volume(spline, pro=False):
+    rgrid = RadialGrid(spline.rtransform)
+    rho = spline.y
+    if not pro:
+        rho /= np.sqrt(4*np.pi)
+    r = rgrid.radii
+    return rgrid.integrate(rho, r**3)/rgrid.integrate(rho)
+
+
 def main(fn_work, scheme, fn_atoms=None):
     with h5.File(fn_work, 'r') as f:
         mol = IOData.from_file(f['mol'])
@@ -12,19 +21,28 @@ def main(fn_work, scheme, fn_atoms=None):
 
     moldens = mol.obasis.compute_grid_density_dm(mol.get_dm_full(), mol.grid.points)
 
+    padb = ProAtomDB.from_file(fn_atoms)
     if scheme == 'mbis':
         wpart = MBISWPart(mol.coordinates, mol.numbers, mol.pseudo_numbers, mol.grid, moldens, lmax=3)
+    elif scheme == 'hi':
+        wpart = HirshfeldIWPart(mol.coordinates, mol.numbers, mol.pseudo_numbers, mol.grid, moldens, padb, lmax=3)
+    elif scheme == 'h':
+        wpart = HirshfeldWPart(mol.coordinates, mol.numbers, mol.pseudo_numbers, mol.grid, moldens, padb, lmax=3)
     else:
-        atomdb = ProAtomDB.from_file(fn_atoms)
-        if scheme == 'hi':
-            wpart = HirshfeldIWPart(mol.coordinates, mol.numbers, mol.pseudo_numbers, mol.grid, moldens, atomdb, lmax=3)
-        elif scheme == 'h':
-            wpart = HirshfeldWPart(mol.coordinates, mol.numbers, mol.pseudo_numbers, mol.grid, moldens, atomdb, lmax=3)
-        else:
-            raise Foo
+        raise Foo
 
     wpart.do_charges()
     wpart.do_moments()
+
+    # compute the ratio of the expectation value of r^3
+    volume_ratios = []
+    for iatom in xrange(mol.natom):
+        spline = padb.get_spline(mol.numbers[iatom])
+        pro_volume = get_volume(spline, pro=True)
+        assert abs(wpart['radial_moments'][iatom, 0] - wpart['populations'][iatom]) < 1e-10
+        aim_volume = wpart['radial_moments'][iatom, 3]/wpart['radial_moments'][iatom, 0]
+        volume_ratios.append(aim_volume/pro_volume)
+    volume_ratios = np.array(volume_ratios)
 
     # Construct the distributed multipole operators
     operators, potentials = get_dmo(mol, wpart)
@@ -33,6 +51,7 @@ def main(fn_work, scheme, fn_atoms=None):
     # write stuff out to a HDF5 file. Keep as much as possible
     results = {}
     npure = get_npure_cumul(wpart.lmax)
+    results['volume_ratios'] = volume_ratios
     results['charges'] = wpart['charges']
     results['radial_moments'] = wpart['radial_moments']
     results['operators'] = {}

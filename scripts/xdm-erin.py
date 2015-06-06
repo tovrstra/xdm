@@ -56,11 +56,16 @@ class XDMMolecule(object):
                     )
                     self.moments[iatom] = m1, m2, m3
 
-        # get the (rescaled) polarizabilities
-        self.pols = np.array([
-            [periodic[number].pold, polqs.get(number, 0.0), polos.get(number, 0.0)]
-            for number in mol.numbers
-        ])
+            # get the (rescaled) polarizabilities
+            self.pols = []
+            for iatom in xrange(mol.natom):
+                number = mol.numbers[iatom]
+                self.pols.append([
+                    periodic[number].pold*f['aim/volume_ratios'][iatom],
+                    polqs.get(number, 0.0),
+                    polos.get(number, 0.0)
+                ])
+            self.pols = np.array(self.pols)
 
 
 def compute_xdm_coeffs_erin(ma, mb, pa, pb, dqo=False):
