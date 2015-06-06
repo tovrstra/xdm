@@ -10,45 +10,39 @@ def main(fn_work):
     with h5.File(fn_work, 'r') as f:
         mol = IOData.from_file(f['mol'])
         mol.lf = DenseLinalgFactory(mol.obasis.nbasis)
-        operators = load_h5(f['aim']['operators'])
         potentials = load_h5(f['aim']['potentials'])
 
     dm_full = mol.get_dm_full()
     moldens = mol.obasis.compute_grid_density_dm(dm_full, mol.grid.points)
 
-    nop = len(operators)
-    natom = mol.natom
-    npure = nop/natom
+    field_x = mol.lf.create_two_index()
+    field_y = mol.lf.create_two_index()
+    field_z = mol.lf.create_two_index()
+    mol.obasis.compute_grid_density_fock(mol.grid.points, mol.grid.weights, mol.grid.points[:,0], field_x)
+    mol.obasis.compute_grid_density_fock(mol.grid.points, mol.grid.weights, mol.grid.points[:,1], field_y)
+    mol.obasis.compute_grid_density_fock(mol.grid.points, mol.grid.weights, mol.grid.points[:,2], field_z)
 
-    operators = [value for key, value in sorted(operators.iteritems())]
-    potentials = [value for key, value in sorted(potentials.iteritems())]
+    # Compute x-hole dipole components
+    xds = np.zeros(mol.grid.points.shape)
+    for icart, op in enumerate([field_x, field_y, field_z]):
+        # Expectation value of the X-hole barycenter
+        dsd = dm_full.copy()
+        dsd.idot(op)
+        dsd.idot(dm_full)
+        bary_center = mol.obasis.compute_grid_density_dm(dsd, mol.grid.points)/2/moldens
+        xds[:,icart] = mol.grid.points[:,icart] - bary_center
 
-    moments = np.zeros((natom, 3), float)
-    for iatom in xrange(natom):
-        bary_centers = []
-        pots = []
-        for ipure in xrange(1, 4):
-            iop = iatom + ipure*natom
-            # Expectation value of the X-hole barycenter
-            dsd = dm_full.copy()
-            dsd.idot(operators[iop])
-            dsd.idot(dm_full)
-            bary_center = mol.obasis.compute_grid_density_dm(dsd, mol.grid.points)/2/moldens
-            bary_centers.append(bary_center)
-            pots.append(potentials[iop])
+    # Compute the magnitude of the x-hole dipole
+    xdmag = np.sqrt(xds[:,0]*xds[:,0] + xds[:,1]*xds[:,1] + xds[:,2]*xds[:,2])
 
-
-        cmag = 0.0
-        rmag = 0.0
-        for icart in 0, 1, 2:
-            cmag += bary_centers[icart]**2
-            rmag += pots[icart]**2
-        cmag **= 0.5
-        rmag **= 0.5
-
+    moments = np.zeros((mol.natom, 3), float)
+    for iatom in xrange(mol.natom):
+        r = mol.grid.points - mol.coordinates[iatom]
+        rmag = np.sqrt(r[:,0]*r[:,0] + r[:,1]*r[:,1] + r[:,2]*r[:,2])
+        w = potentials['mom_00_atom_%03i' % iatom]
         for imom in 1, 2, 3:
-            xd = rmag**imom - cmag**imom
-            moments[iatom, imom-1] = mol.grid.integrate(xd, xd, moldens)
+            tmp = rmag**imom - (rmag - xdmag)**imom
+            moments[iatom, imom-1] = mol.grid.integrate(w, tmp, tmp, moldens)
 
     print moments[0]
 

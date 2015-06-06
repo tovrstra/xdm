@@ -60,8 +60,12 @@ class XDMMolecule(object):
             self.pols = []
             for iatom in xrange(mol.natom):
                 number = mol.numbers[iatom]
+                if mol.natom == 1:
+                    ratio = 1.0
+                else:
+                    ratio = f['aim/volume_ratios'][iatom]
                 self.pols.append([
-                    periodic[number].pold*f['aim/volume_ratios'][iatom],
+                    periodic[number].pold*ratio,
                     polqs.get(number, 0.0),
                     polos.get(number, 0.0)
                 ])
